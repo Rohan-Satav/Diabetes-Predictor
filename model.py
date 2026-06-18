@@ -9,8 +9,6 @@ import pickle
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
@@ -25,11 +23,10 @@ FEATURES = [
 ]
 TARGET = "Outcome"
 MODEL_DIR = "saved_models"
+MODEL_NAME = "Random Forest"
 
 AVAILABLE_MODELS = {
-    "Random Forest":       RandomForestClassifier(n_estimators=150, random_state=42),
-    "Logistic Regression": LogisticRegression(max_iter=500, random_state=42),
-    "SVM":                 SVC(probability=True, random_state=42),
+    "Random Forest": RandomForestClassifier(n_estimators=150, random_state=42),
 }
 
 
@@ -40,7 +37,7 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     for col in zero_cols:
         df[col] = df[col].replace(0, np.nan)
-        df[col].fillna(df[col].median(), inplace=True)
+        df[col] = df[col].fillna(df[col].median())
     return df
 
 
@@ -162,16 +159,15 @@ if __name__ == "__main__":
 
     df = pd.read_csv(DATA_PATH)
 
-    for name in AVAILABLE_MODELS:
-        print(f"\n{'='*50}")
-        print(f"Training: {name}")
-        result = train(df, name)
-        m = result["metrics"]
-        print(f"  Accuracy  : {m['accuracy']:.4f}")
-        print(f"  F1 Score  : {m['f1']:.4f}")
-        print(f"  Precision : {m['precision']:.4f}")
-        print(f"  Recall    : {m['recall']:.4f}")
-        print(f"  ROC-AUC   : {m['auc']:.4f}")
-        save(result["model"], result["scaler"], name)
+    print(f"\n{'='*50}")
+    print(f"Training: {MODEL_NAME}")
+    result = train(df, MODEL_NAME)
+    m = result["metrics"]
+    print(f"  Accuracy  : {m['accuracy']:.4f}")
+    print(f"  F1 Score  : {m['f1']:.4f}")
+    print(f"  Precision : {m['precision']:.4f}")
+    print(f"  Recall    : {m['recall']:.4f}")
+    print(f"  ROC-AUC   : {m['auc']:.4f}")
+    save(result["model"], result["scaler"], MODEL_NAME)
 
-    print("\n✅ All models trained and saved to ./saved_models/")
+    print("\n✅ Random Forest model trained and saved to ./saved_models/")

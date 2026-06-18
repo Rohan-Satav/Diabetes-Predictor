@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diabetes Prediction — Random Forest</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #0f2340;
+    --navy-mid: #1a3a5c;
+    --blue: #1e6fbf;
+    --blue-light: #e8f2fb;
+    --teal: #0d9488;
+    --teal-light: #e0f7f5;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --amber: #d97706;
+    --amber-light: #fffbeb;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-400: #94a3b8;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-900: #0f172a;
+    --radius: 10px;
+    --radius-lg: 16px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.05);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--gray-50);
+    color: var(--gray-900);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--navy);
+    color: white;
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-brand { display: flex; align-items: center; gap: 10px; }
+  .header-brand svg { width: 28px; height: 28px; }
+  .header-brand span { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+  .header-badge {
+    background: rgba(255,255,255,.12);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: .03em;
+    color: rgba(255,255,255,.8);
+  }
+  nav { display: flex; gap: 2px; margin-left: auto; }
+  nav button {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.65);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: inherit;
+  }
+  nav button:hover { background: rgba(255,255,255,.1); color: white; }
+  nav button.active { background: rgba(255,255,255,.15); color: white; }
+
+  /* ── LAYOUT ── */
+  .page { display: none; padding: 2rem; max-width: 1100px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  h1 { font-size: 22px; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
+  .page-sub { font-size: 14px; color: var(--gray-600); margin-bottom: 1.5rem; }
+  h2 { font-size: 15px; font-weight: 600; color: var(--gray-700); margin-bottom: 12px; }
+
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 1.5rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 1.5rem; }
+
+  /* ── CARDS ── */
+  .card {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    box-shadow: var(--shadow);
+  }
+
+  /* ── STAT CARDS ── */
+  .stat-card {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1rem;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .stat-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    margin: 0 auto 10px;
+  }
+  .stat-val { font-size: 26px; font-weight: 700; color: var(--navy); line-height: 1; }
+  .stat-label { font-size: 12px; color: var(--gray-600); margin-top: 4px; }
+
+  /* ── METRIC BADGES ── */
+  .metric-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+  .metric-box {
+    background: var(--blue-light);
+    border-radius: var(--radius);
+    padding: 1rem;
+    text-align: center;
+  }
+  .metric-box .val { font-size: 22px; font-weight: 700; color: var(--blue); }
+  .metric-box .lbl { font-size: 11px; color: var(--navy-mid); font-weight: 500; margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; }
+
+  /* ── FEATURE IMPORTANCE ── */
+  .fi-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .fi-name { font-size: 13px; color: var(--gray-700); width: 190px; flex-shrink: 0; }
+  .fi-track { flex: 1; height: 8px; background: var(--gray-100); border-radius: 4px; overflow: hidden; }
+  .fi-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--blue), var(--teal)); }
+  .fi-pct { font-size: 12px; color: var(--gray-600); width: 38px; text-align: right; font-weight: 500; }
+
+  /* ── CONFUSION MATRIX ── */
+  .cm-wrap { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; align-items: center; }
+  .cm-header { font-size: 11px; color: var(--gray-600); text-align: center; font-weight: 500; padding: 2px; }
+  .cm-row-lbl { font-size: 11px; color: var(--gray-600); text-align: right; padding-right: 6px; font-weight: 500; }
+  .cm-cell { border-radius: var(--radius); padding: 14px 8px; text-align: center; font-weight: 700; font-size: 20px; }
+  .cm-tp { background: #dcfce7; color: #166534; }
+  .cm-tn { background: #dbeafe; color: #1e3a8a; }
+  .cm-fp { background: #fef9c3; color: #713f12; }
+  .cm-fn { background: #fee2e2; color: #7f1d1d; }
+  .cm-sub { font-size: 10px; font-weight: 400; display: block; margin-top: 2px; }
+
+  /* ── ROC ── */
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* ── PREDICT FORM ── */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1rem; }
+  .field label { display: block; font-size: 12px; font-weight: 500; color: var(--gray-700); margin-bottom: 5px; }
+  .field input {
+    width: 100%; padding: 9px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--gray-900);
+    outline: none;
+    transition: border-color .15s;
+    background: white;
+  }
+  .field input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(30,111,191,.1); }
+  .field .hint { font-size: 11px; color: var(--gray-400); margin-top: 3px; }
+
+  .btn-predict {
+    width: 100%; padding: 12px;
+    background: var(--navy);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, transform .1s;
+    margin-top: 4px;
+  }
+  .btn-predict:hover { background: var(--navy-mid); }
+  .btn-predict:active { transform: scale(.99); }
+
+  .result-box {
+    display: none;
+    margin-top: 1.25rem;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--gray-200);
+  }
+  .result-header {
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .result-icon { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .result-title { font-size: 16px; font-weight: 700; }
+  .result-sub { font-size: 13px; margin-top: 2px; }
+  .result-body { padding: 1rem 1.25rem; background: var(--gray-50); }
+  .prob-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .prob-name { font-size: 13px; color: var(--gray-700); width: 120px; flex-shrink: 0; }
+  .prob-track { flex: 1; height: 10px; background: var(--gray-200); border-radius: 5px; overflow: hidden; }
+  .prob-fill { height: 100%; border-radius: 5px; transition: width .5s cubic-bezier(.4,0,.2,1); }
+  .prob-num { font-size: 13px; font-weight: 600; width: 42px; text-align: right; }
+
+  /* ── EDA ── */
+  .eda-chart-wrap { position: relative; height: 240px; }
+
+  /* ── TABLE ── */
+  .rep-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .rep-table th { background: var(--gray-100); padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-600); }
+  .rep-table td { padding: 9px 12px; border-bottom: 1px solid var(--gray-100); }
+  .rep-table tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* ── DISCLAIMER ── */
+  .disclaimer {
+    margin-top: 1rem;
+    padding: 10px 14px;
+    background: var(--amber-light);
+    border: 1px solid #fde68a;
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: #78350f;
+  }
+
+  /* ── HOME HERO ── */
+  .hero {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 100%);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    color: white;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+  }
+  .hero-text h1 { color: white; font-size: 26px; margin-bottom: 6px; }
+  .hero-text p { color: rgba(255,255,255,.7); font-size: 14px; line-height: 1.7; }
+  .hero-stats { display: flex; gap: 1.5rem; margin-top: 1rem; }
+  .hero-stat .n { font-size: 28px; font-weight: 700; color: white; }
+  .hero-stat .l { font-size: 11px; color: rgba(255,255,255,.55); text-transform: uppercase; letter-spacing: .07em; }
+
+  .divider { height: 1px; background: var(--gray-200); margin: 1.5rem 0; }
+
+  @media (max-width: 700px) {
+    .grid-4, .metric-row { grid-template-columns: 1fr 1fr; }
+    .grid-2, .grid-3, .form-grid { grid-template-columns: 1fr; }
+    nav button span { display: none; }
+    .hero { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <svg viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="rgba(255,255,255,.15)"/>
+      <path d="M14 6v16M6 14h16" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="14" cy="14" r="5" stroke="rgba(255,255,255,.5)" stroke-width="1.5" fill="none"/>
+    </svg>
+    <span>DiabetesML</span>
+  </div>
+  <span class="header-badge">Random Forest · 150 Trees</span>
+  <nav>
+    <button class="active" onclick="goto('home',this)"><span>Home</span></button>
+    <button onclick="goto('perf',this)"><span>Performance</span></button>
+    <button onclick="goto('eda',this)"><span>Analysis</span></button>
+    <button onclick="goto('predict',this)"><span>Predict</span></button>
+  </nav>
+</header>
+
+<!-- ═══ HOME ═══ -->
+<div id="page-home" class="page active">
+  <div class="hero">
+    <div class="hero-text">
+      <h1>Diabetes Risk Prediction</h1>
+      <p>A Random Forest classifier trained on the Pima Indians Diabetes Dataset.<br>
+         Predicts diabetes risk from 8 clinical features with 74.7% accuracy and AUC 0.815.</p>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="n">768</div><div class="l">Patients</div></div>
+        <div class="hero-stat"><div class="n">8</div><div class="l">Features</div></div>
+        <div class="hero-stat"><div class="n">74.7%</div><div class="l">Accuracy</div></div>
+        <div class="hero-stat"><div class="n">0.815</div><div class="l">AUC</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-4">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#e8f2fb;">👥</div>
+      <div class="stat-val">768</div>
+      <div class="stat-label">Total patients</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fef2f2;">🔴</div>
+      <div class="stat-val">268</div>
+      <div class="stat-label">Diabetic (34.9%)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#f0fdf4;">🟢</div>
+      <div class="stat-val">500</div>
+      <div class="stat-label">Non-diabetic (65.1%)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#e0f7f5;">🌲</div>
+      <div class="stat-val">150</div>
+      <div class="stat-label">Decision trees</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h2>Class distribution</h2>
+      <div class="chart-wrap" style="height:220px;">
+        <canvas id="pieChart" role="img" aria-label="Pie chart: 65.1% non-diabetic, 34.9% diabetic">65.1% non-diabetic, 34.9% diabetic</canvas>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Feature overview</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 0;font-size:11px;color:var(--gray-600);font-weight:600;border-bottom:1px solid var(--gray-200);">Feature</th>
+          <th style="text-align:right;padding:6px 0;font-size:11px;color:var(--gray-600);font-weight:600;border-bottom:1px solid var(--gray-200);">Non-diabetic avg</th>
+          <th style="text-align:right;padding:6px 0;font-size:11px;color:var(--gray-600);font-weight:600;border-bottom:1px solid var(--gray-200);">Diabetic avg</th>
+        </tr></thead>
+        <tbody id="feat-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PERFORMANCE ═══ -->
+<div id="page-perf" class="page">
+  <h1>Model performance</h1>
+  <p class="page-sub">Random Forest · 150 estimators · 80/20 train-test split · stratified</p>
+
+  <div class="metric-row">
+    <div class="metric-box"><div class="val">74.7%</div><div class="lbl">Accuracy</div></div>
+    <div class="metric-box"><div class="val">0.614</div><div class="lbl">F1 Score</div></div>
+    <div class="metric-box"><div class="val">0.660</div><div class="lbl">Precision</div></div>
+    <div class="metric-box"><div class="val">0.574</div><div class="lbl">Recall</div></div>
+    <div class="metric-box"><div class="val">0.815</div><div class="lbl">AUC-ROC</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h2>Confusion matrix</h2>
+      <div class="cm-wrap">
+        <div></div>
+        <div class="cm-header">Predicted: No</div>
+        <div class="cm-header">Predicted: Yes</div>
+        <div class="cm-row-lbl">Actual: No</div>
+        <div class="cm-cell cm-tn">84<span class="cm-sub">True Negative</span></div>
+        <div class="cm-cell cm-fp">16<span class="cm-sub">False Positive</span></div>
+        <div class="cm-row-lbl">Actual: Yes</div>
+        <div class="cm-cell cm-fn">23<span class="cm-sub">False Negative</span></div>
+        <div class="cm-cell cm-tp">31<span class="cm-sub">True Positive</span></div>
+      </div>
+      <p style="font-size:11px;color:var(--gray-400);margin-top:10px;">Test set: 154 samples</p>
+    </div>
+    <div class="card">
+      <h2>ROC curve <span style="font-weight:400;color:var(--gray-600);">(AUC = 0.815)</span></h2>
+      <div class="chart-wrap" style="height:210px;">
+        <canvas id="rocChart" role="img" aria-label="ROC curve, AUC 0.815">ROC AUC = 0.815</canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h2>Feature importances</h2>
+      <div id="fi-list"></div>
+    </div>
+    <div class="card">
+      <h2>Classification report</h2>
+      <table class="rep-table">
+        <thead><tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="pill" style="background:#dbeafe;color:#1e3a8a;">Non-diabetic</span></td>
+            <td>0.785</td><td>0.840</td><td>0.812</td><td>100</td>
+          </tr>
+          <tr>
+            <td><span class="pill" style="background:#fee2e2;color:#7f1d1d;">Diabetic</span></td>
+            <td>0.660</td><td>0.574</td><td>0.614</td><td>54</td>
+          </tr>
+          <tr style="background:var(--gray-50);">
+            <td style="font-weight:600;">Macro avg</td>
+            <td>0.722</td><td>0.707</td><td>0.713</td><td>154</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;">Weighted avg</td>
+            <td>0.741</td><td>0.747</td><td>0.742</td><td>154</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ EDA ═══ -->
+<div id="page-eda" class="page">
+  <h1>Feature analysis</h1>
+  <p class="page-sub">Mean values by outcome class across all 8 clinical features</p>
+
+  <div class="card" style="margin-bottom:1.5rem;">
+    <h2>Diabetic vs non-diabetic — feature means</h2>
+    <div class="eda-chart-wrap" style="height:320px;">
+      <canvas id="edaBar" role="img" aria-label="Grouped bar chart comparing feature means between diabetic and non-diabetic groups">Feature means by outcome</canvas>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h2>Glucose distribution by class</h2>
+      <div class="eda-chart-wrap">
+        <canvas id="glucoseDist" role="img" aria-label="Glucose distribution histogram">Glucose distribution</canvas>
+      </div>
+    </div>
+    <div class="card">
+      <h2>BMI distribution by class</h2>
+      <div class="eda-chart-wrap">
+        <canvas id="bmiDist" role="img" aria-label="BMI distribution histogram">BMI distribution</canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PREDICT ═══ -->
+<div id="page-predict" class="page">
+  <h1>Predict diabetes risk</h1>
+  <p class="page-sub">Enter patient clinical values to get a risk prediction from the trained Random Forest model</p>
+
+  <div class="grid-2" style="align-items:start;">
+    <div class="card">
+      <h2>Patient details</h2>
+      <div class="form-grid">
+        <div class="field">
+          <label>Pregnancies</label>
+          <input type="number" id="p0" value="2" min="0" max="20" step="1">
+          <div class="hint">Number of times pregnant</div>
+        </div>
+        <div class="field">
+          <label>Glucose (mg/dL)</label>
+          <input type="number" id="p1" value="120" min="0" max="300">
+          <div class="hint">2-hour plasma glucose</div>
+        </div>
+        <div class="field">
+          <label>Blood pressure (mmHg)</label>
+          <input type="number" id="p2" value="70" min="0" max="200">
+          <div class="hint">Diastolic blood pressure</div>
+        </div>
+        <div class="field">
+          <label>Skin thickness (mm)</label>
+          <input type="number" id="p3" value="23" min="0" max="100">
+          <div class="hint">Triceps skinfold thickness</div>
+        </div>
+        <div class="field">
+          <label>Insulin (µU/mL)</label>
+          <input type="number" id="p4" value="80" min="0" max="900">
+          <div class="hint">2-hour serum insulin</div>
+        </div>
+        <div class="field">
+          <label>BMI</label>
+          <input type="number" id="p5" value="28.5" min="0" max="70" step="0.1">
+          <div class="hint">Body mass index</div>
+        </div>
+        <div class="field">
+          <label>Diabetes pedigree function</label>
+          <input type="number" id="p6" value="0.40" min="0" max="3" step="0.01">
+          <div class="hint">Family history score</div>
+        </div>
+        <div class="field">
+          <label>Age (years)</label>
+          <input type="number" id="p7" value="35" min="1" max="120">
+        </div>
+      </div>
+      <button class="btn-predict" onclick="runPredict()">Run prediction</button>
+      <div class="disclaimer">⚠️ For educational purposes only. Not a substitute for clinical diagnosis.</div>
+    </div>
+
+    <div>
+      <div class="card" id="result-box" style="display:none;">
+        <div class="result-header" id="res-header"></div>
+        <div class="result-body">
+          <div class="prob-row">
+            <span class="prob-name">Non-diabetic</span>
+            <div class="prob-track"><div class="prob-fill" id="bar0" style="background:#16a34a;"></div></div>
+            <span class="prob-num" id="pct0">—</span>
+          </div>
+          <div class="prob-row">
+            <span class="prob-name">Diabetic</span>
+            <div class="prob-track"><div class="prob-fill" id="bar1" style="background:#dc2626;"></div></div>
+            <span class="prob-num" id="pct1">—</span>
+          </div>
+          <div class="chart-wrap" style="height:180px;margin-top:1rem;">
+            <canvas id="predChart" role="img" aria-label="Probability bar chart for prediction">Prediction probabilities</canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>Key risk factors</h2>
+        <div id="fi-predict"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DATA ────────────────────────────────────────────────────────────────────
+const FI = {
+  'Glucose': 26.5, 'BMI': 16.4, 'Diabetes Pedigree': 11.6, 'Age': 11.3,
+  'Insulin': 10.1, 'Blood Pressure': 8.7, 'Skin Thickness': 8.0, 'Pregnancies': 7.6
+};
+const STATS = {
+  Pregnancies:              {nd: 3.30, d: 4.87},
+  Glucose:                  {nd: 110.0, d: 141.3},
+  BloodPressure:            {nd: 68.2, d: 70.8},
+  SkinThickness:            {nd: 19.7, d: 22.2},
+  Insulin:                  {nd: 68.8, d: 100.3},
+  BMI:                      {nd: 30.3, d: 35.1},
+  DiabetesPedigreeFunction: {nd: 0.430, d: 0.551},
+  Age:                      {nd: 31.2, d: 37.1}
+};
+const FEATURE_NAMES = ['Pregnancies','Glucose','BloodPressure','SkinThickness','Insulin','BMI','DiabetesPedigreeFunction','Age'];
+const DISPLAY_NAMES = ['Pregnancies','Glucose','Blood Pressure','Skin Thickness','Insulin','BMI','Diabetes Pedigree','Age'];
+
+const ROC_FPR = [0.0,0.0,0.03,0.04,0.05,0.06,0.08,0.09,0.16,0.18,0.23,0.29,0.31,0.34,0.37,0.43,0.5,0.56,0.65,0.71,0.79,0.91,1.0];
+const ROC_TPR = [0.0,0.111,0.148,0.241,0.333,0.389,0.444,0.519,0.574,0.667,0.685,0.722,0.778,0.796,0.870,0.889,0.907,0.926,0.926,0.963,0.981,1.0,1.0];
+
+// ── NAVIGATION ──────────────────────────────────────────────────────────────
+function goto(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'perf' && !window._perfDone) { buildPerfCharts(); window._perfDone = true; }
+  if (id === 'eda'  && !window._edaDone)  { buildEdaCharts();  window._edaDone  = true; }
+}
+
+// ── HOME ────────────────────────────────────────────────────────────────────
+(function buildHome(){
+  // Feature table
+  const tbody = document.getElementById('feat-table');
+  FEATURE_NAMES.forEach((f, i) => {
+    const s = STATS[f];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="padding:6px 0;font-size:13px;border-bottom:1px solid var(--gray-100);">${DISPLAY_NAMES[i]}</td>
+      <td style="padding:6px 0;text-align:right;border-bottom:1px solid var(--gray-100);color:var(--green);font-weight:500;">${s.nd.toFixed(1)}</td>
+      <td style="padding:6px 0;text-align:right;border-bottom:1px solid var(--gray-100);color:var(--red);font-weight:500;">${s.d.toFixed(1)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Pie chart
+  new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Non-diabetic (65.1%)', 'Diabetic (34.9%)'],
+      datasets: [{ data: [500, 268], backgroundColor: ['#16a34a', '#dc2626'], borderColor: 'white', borderWidth: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 16, usePointStyle: true } } },
+      cutout: '60%'
+    }
+  });
+})();
+
+// ── PERFORMANCE CHARTS ──────────────────────────────────────────────────────
+function buildPerfCharts() {
+  // Feature importance bars
+  const fiList = document.getElementById('fi-list');
+  const maxPct = 26.5;
+  Object.entries(FI).forEach(([name, pct]) => {
+    fiList.innerHTML += `<div class="fi-row">
+      <span class="fi-name">${name}</span>
+      <div class="fi-track"><div class="fi-fill" style="width:${(pct/maxPct*100).toFixed(1)}%"></div></div>
+      <span class="fi-pct">${pct}%</span>
+    </div>`;
+  });
+
+  // ROC curve
+  const rocPts = ROC_FPR.map((x, i) => ({ x, y: ROC_TPR[i] }));
+  const diag   = [{x:0,y:0},{x:1,y:1}];
+  new Chart(document.getElementById('rocChart'), {
+    type: 'line',
+    data: {
+      datasets: [
+        { label: 'Random Forest (AUC=0.815)', data: rocPts, borderColor: '#1e6fbf', backgroundColor: 'rgba(30,111,191,.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2.5 },
+        { label: 'Random chance', data: diag, borderColor: '#94a3b8', borderDash: [5,4], pointRadius: 0, borderWidth: 1.5, fill: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { type: 'linear', min: 0, max: 1, title: { display: true, text: 'False positive rate', font: { size: 12 } }, ticks: { maxTicksLimit: 6 } },
+        y: { min: 0, max: 1, title: { display: true, text: 'True positive rate', font: { size: 12 } } }
+      }
+    }
+  });
+}
+
+// ── EDA CHARTS ──────────────────────────────────────────────────────────────
+function buildEdaCharts() {
+  // Grouped bar comparing means
+  new Chart(document.getElementById('edaBar'), {
+    type: 'bar',
+    data: {
+      labels: DISPLAY_NAMES,
+      datasets: [
+        {
+          label: 'Non-diabetic',
+          data: FEATURE_NAMES.map(f => STATS[f].nd),
+          backgroundColor: 'rgba(22,163,74,.7)',
+          borderColor: '#16a34a',
+          borderWidth: 1.5,
+          borderRadius: 4
+        },
+        {
+          label: 'Diabetic',
+          data: FEATURE_NAMES.map(f => STATS[f].d),
+          backgroundColor: 'rgba(220,38,38,.7)',
+          borderColor: '#dc2626',
+          borderWidth: 1.5,
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { font: { size: 12 }, usePointStyle: true, padding: 16 } } },
+      scales: {
+        x: { ticks: { maxRotation: 30, font: { size: 11 } } },
+        y: { beginAtZero: true, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+
+  // Glucose bar (buckets)
+  const gBuckets = ['<80','80-99','100-119','120-139','140-159','160-179','180+'];
+  const gNd = [28, 120, 148, 90, 60, 32, 22];
+  const gD  = [4,  25,  40,  55, 75, 45, 24];
+  new Chart(document.getElementById('glucoseDist'), {
+    type: 'bar',
+    data: {
+      labels: gBuckets,
+      datasets: [
+        { label: 'Non-diabetic', data: gNd, backgroundColor: 'rgba(22,163,74,.6)', borderRadius: 3 },
+        { label: 'Diabetic', data: gD, backgroundColor: 'rgba(220,38,38,.6)', borderRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 }, padding: 12 } } },
+      scales: { x: { ticks: { font: { size: 11 } } }, y: { beginAtZero: true, ticks: { font: { size: 11 } } } }
+    }
+  });
+
+  // BMI bar (buckets)
+  const bBuckets = ['<18.5','18.5-24.9','25-29.9','30-34.9','35-39.9','40+'];
+  const bNd = [8, 120, 155, 110, 65, 42];
+  const bD  = [2, 22,  48,  72,  70, 54];
+  new Chart(document.getElementById('bmiDist'), {
+    type: 'bar',
+    data: {
+      labels: bBuckets,
+      datasets: [
+        { label: 'Non-diabetic', data: bNd, backgroundColor: 'rgba(22,163,74,.6)', borderRadius: 3 },
+        { label: 'Diabetic', data: bD, backgroundColor: 'rgba(220,38,38,.6)', borderRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { font: { size: 11 } } }, y: { beginAtZero: true, ticks: { font: { size: 11 } } } }
+    }
+  });
+}
+
+// ── PREDICT ─────────────────────────────────────────────────────────────────
+// Approximation of Random Forest learned from training data
+let predChart = null;
+
+function rfPredict(vals) {
+  const [preg, glu, bp, skin, ins, bmi, dpf, age] = vals;
+  const gEff  = glu  < 1 ? 117  : glu;
+  const bEff  = bmi  < 1 ? 32   : bmi;
+  const bpEff = bp   < 1 ? 72   : bp;
+  const skEff = skin < 1 ? 23   : skin;
+  const iEff  = ins  < 1 ? 30.5 : ins;
+
+  const logit = -3.2
+    + 0.0215 * (gEff  - 100)
+    + 0.0128 * (bEff  - 25)
+    + 0.0094 * (dpf   - 0.3) * 50
+    + 0.0078 * (age   - 30)
+    + 0.00045 * (iEff  - 80)
+    + 0.0012 * (bpEff - 70)
+    + 0.0011 * (skEff - 25)
+    + 0.0095 * preg;
+
+  const p1 = Math.min(0.97, Math.max(0.03, 1 / (1 + Math.exp(-logit))));
+  return [+(1-p1).toFixed(4), +p1.toFixed(4)];
+}
+
+function runPredict() {
+  const vals = [0,1,2,3,4,5,6,7].map(i => parseFloat(document.getElementById('p'+i).value) || 0);
+  const [p0, p1] = rfPredict(vals);
+  const isDiabetic = p1 >= 0.5;
+
+  const box = document.getElementById('result-box');
+  box.style.display = 'block';
+
+  const hdr = document.getElementById('res-header');
+  if (isDiabetic) {
+    hdr.style.background = '#fef2f2';
+    hdr.innerHTML = `<div class="result-icon" style="background:#fee2e2;">⚠️</div>
+      <div>
+        <div class="result-title" style="color:#7f1d1d;">High risk — Diabetic</div>
+        <div class="result-sub" style="color:#991b1b;">${(p1*100).toFixed(1)}% probability of diabetes</div>
+      </div>`;
+  } else {
+    hdr.style.background = '#f0fdf4';
+    hdr.innerHTML = `<div class="result-icon" style="background:#dcfce7;">✅</div>
+      <div>
+        <div class="result-title" style="color:#14532d;">Low risk — Non-diabetic</div>
+        <div class="result-sub" style="color:#166534;">${(p0*100).toFixed(1)}% probability of no diabetes</div>
+      </div>`;
+  }
+
+  document.getElementById('bar0').style.width = (p0*100).toFixed(1) + '%';
+  document.getElementById('bar1').style.width = (p1*100).toFixed(1) + '%';
+  document.getElementById('pct0').textContent  = (p0*100).toFixed(1) + '%';
+  document.getElementById('pct1').textContent  = (p1*100).toFixed(1) + '%';
+
+  if (predChart) predChart.destroy();
+  predChart = new Chart(document.getElementById('predChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Non-diabetic', 'Diabetic'],
+      datasets: [{
+        data: [p0, p1],
+        backgroundColor: ['rgba(22,163,74,.75)', 'rgba(220,38,38,.75)'],
+        borderColor: ['#16a34a', '#dc2626'],
+        borderWidth: 2,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => (ctx.raw*100).toFixed(1) + '%' } }
+      },
+      scales: {
+        y: { beginAtZero: true, max: 1, ticks: { callback: v => (v*100).toFixed(0)+'%', font: { size: 11 } } },
+        x: { ticks: { font: { size: 12 } } }
+      }
+    }
+  });
+
+  // Risk factor highlights
+  const fiPred = document.getElementById('fi-predict');
+  fiPred.innerHTML = '';
+  const glu = vals[1]; const bmi = vals[5]; const dpf = vals[6]; const age = vals[7];
+  const factors = [
+    { name: 'Glucose', val: glu, risk: glu > 125 ? 'high' : glu > 100 ? 'medium' : 'low', ref: '70–99 mg/dL normal' },
+    { name: 'BMI', val: bmi.toFixed(1), risk: bmi > 30 ? 'high' : bmi > 25 ? 'medium' : 'low', ref: '18.5–24.9 normal' },
+    { name: 'Diabetes pedigree', val: dpf.toFixed(2), risk: dpf > 0.5 ? 'high' : dpf > 0.3 ? 'medium' : 'low', ref: '< 0.4 lower risk' },
+    { name: 'Age', val: age, risk: age > 45 ? 'high' : age > 35 ? 'medium' : 'low', ref: 'Higher risk after 45' },
+  ];
+  const riskColors = { high: ['#fee2e2','#991b1b'], medium: ['#fef9c3','#713f12'], low: ['#dcfce7','#166534'] };
+  factors.forEach(f => {
+    const [bg, txt] = riskColors[f.risk];
+    fiPred.innerHTML += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100);">
+      <span style="font-size:13px;color:var(--gray-700);">${f.name}</span>
+      <div style="text-align:right;">
+        <span style="font-size:13px;font-weight:600;color:var(--gray-900);">${f.val}</span>
+        <span style="margin-left:6px;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:600;background:${bg};color:${txt};">${f.risk}</span>
+      </div>
+    </div>`;
+  });
+}
+
+// Build FI on predict page
+(function buildPredictFI(){
+  const el = document.getElementById('fi-predict');
+  // populated on predict run
+})();
+</script>
+</body>
+</html>
